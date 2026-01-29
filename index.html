@@ -7,7 +7,6 @@
 <meta name="theme-color" content="#000000">
 
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" href="favicon.png">
 
 <style>
 html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;}
@@ -27,38 +26,45 @@ window.addEventListener("resize",resize); resize();
 
 function easeOutCubic(t){return 1-Math.pow(1-t,3);}
 
-// --- アイコン ---
-const apps=[
-  {name:"ゲーム", icon:new Image()},
-  {name:"設定", icon:new Image()},
-  {name:"アルバム", icon:new Image()},
-  {name:"電源", icon:new Image()}
-];
-// 自作PNGに置き換え
-apps[0].icon.src="game.png";
-apps[1].icon.src="settings.png";
-apps[2].icon.src="album.png";
-apps[3].icon.src="power.png";
+/* --- icons --- */
+function baseIcon(c1,c2){
+  const cv=document.createElement("canvas");
+  cv.width=cv.height=160;
+  const x=cv.getContext("2d");
+  const g=x.createLinearGradient(0,0,160,160);
+  g.addColorStop(0,c1); g.addColorStop(1,c2);
+  x.fillStyle=g; x.fillRect(0,0,160,160);
+  return {cv,x};
+}
 
-// --- 状態 ---
-let state="home";
-let selected=0,pos=0,vel=0,fade=0,timer=0;
+function iconGame(){const{cv,x}=baseIcon("#ff6a6a","#d93030"); x.fillStyle="#fff"; x.beginPath(); x.moveTo(60,45); x.lineTo(115,80); x.lineTo(60,115); x.fill(); return cv;}
+function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9"); x.strokeStyle="#fff"; x.lineWidth=10; x.beginPath(); x.arc(80,80,28,0,Math.PI*2); x.stroke(); for(let i=0;i<6;i++){const a=i*Math.PI/3; x.beginPath(); x.moveTo(80+Math.cos(a)*36,80+Math.sin(a)*36); x.lineTo(80+Math.cos(a)*52,80+Math.sin(a)*52); x.stroke();} return cv;}
+function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a"); x.fillStyle="#fff"; x.fillRect(40,45,80,55); return cv;}
+function iconPower(){const{cv,x}=baseIcon("#aaa","#666"); x.strokeStyle="#fff"; x.lineWidth=10; x.beginPath(); x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75); x.stroke(); x.beginPath(); x.moveTo(80,30); x.lineTo(80,60); x.stroke(); return cv;}
+
+const apps=[
+  {name:"ゲーム",icon:iconGame()},
+  {name:"設定",icon:iconSettings()},
+  {name:"アルバム",icon:iconAlbum()},
+  {name:"電源",icon:iconPower()}
+];
+
+/* --- 状態 --- */
+let state="home",selected=0,pos=0,vel=0,fade=0,timer=0;
 let spin=0,spinSpeed=0;
 const spacing=220;
-
-// 選択アイコン拡大アニメーション
 let scales = Array(apps.length).fill(1);
 const scaleTarget = 1.35;
 let launchZoom = 1;
 
-// --- 描画 ---
+/* --- 描画 --- */
 function drawHome(t){
   const cx=c.width/2,cy=c.height/2;
   const tp=selected*spacing;
   vel=(vel+(tp-pos)*0.12)*0.75; pos+=vel;
 
   for(let i=0;i<apps.length;i++){
-    const target = (i===selected) ? scaleTarget : 1;
+    const target = (i===selected)? scaleTarget : 1;
     scales[i] += (target - scales[i])*0.1;
 
     const x=cx+i*spacing-pos;
@@ -66,15 +72,7 @@ function drawHome(t){
 
     t.save(); t.translate(x,cy); t.scale(s,s);
     if(i===selected){ t.shadowColor="#0ff"; t.shadowBlur=30; }
-
-    // 画像がまだ読み込まれていない場合は空キャンバスを描画
-    if(apps[i].icon.complete){
-      t.drawImage(apps[i].icon,-80,-80,160,160);
-    } else {
-      t.fillStyle="#444"; // 読み込み前の灰色アイコン
-      t.fillRect(-80,-80,160,160);
-    }
-
+    t.drawImage(apps[i].icon,-80,-80,160,160);
     t.restore();
 
     if(i===selected){
@@ -95,7 +93,7 @@ function drawLoading(){
   const cx=c.width/2,cy=c.height/2,R=32,r=5,N=8;
   spinSpeed += (0.08 - spinSpeed)*0.08; spin += spinSpeed;
   for(let i=0;i<N;i++){
-    const a = spin + i*(Math.PI*2/N);
+    const a=spin + i*(Math.PI*2/N);
     ctx.globalAlpha = 0.3 + (i/N)*0.7;
     ctx.beginPath(); ctx.arc(cx+Math.cos(a)*R,cy+Math.sin(a)*R,r,0,Math.PI*2); ctx.fill();
   }
@@ -109,7 +107,7 @@ function drawApp(){
   ctx.font="20px sans-serif"; ctx.fillText("EscでHOMEに戻る",c.width/2,c.height/2+60);
 }
 
-// --- メインループ ---
+/* --- メインループ --- */
 function loop(){
   ctx.clearRect(0,0,c.width,c.height);
 
@@ -141,10 +139,10 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// --- ループ開始 ---
-loop(); // 即開始、画像未ロードでも灰色枠で仮描画される
+/* --- ループ開始 --- */
+loop();
 
-// --- キー操作 ---
+/* --- キー操作 --- */
 window.addEventListener("keydown",e=>{
   if(state==="home"){
     if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
