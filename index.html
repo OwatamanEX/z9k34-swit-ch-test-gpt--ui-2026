@@ -61,15 +61,24 @@ function drawHome(t){
   const cx=c.width/2,cy=c.height/2;
   const tp=selected*spacing;
   vel=(vel+(tp-pos)*0.12)*0.75; pos+=vel;
+
   for(let i=0;i<apps.length;i++){
     const x=cx+i*spacing-pos;
     const d=Math.abs(i*spacing-pos)/spacing;
     let s=Math.max(0.8,1.35-d*0.35);
-    if((state==="launching"||state==="returning")&&i===selected)s*=zoom;
+
+    // 選択中アイコン拡大
+    if(i===selected && (state==="home"||state==="returning"||state==="launching")) s*=1.2;
+
     t.save(); t.translate(x,cy); t.scale(s,s);
+
+    // 選択中の光
     if(i===selected){t.shadowColor="#0ff"; t.shadowBlur=30;}
+
     t.drawImage(apps[i].icon,-80,-80,160,160); t.restore();
-    if(i===selected){t.fillStyle="#fff";t.font="24px sans-serif";t.textAlign="center";t.fillText(apps[i].name,x,cy+140);}
+
+    // 名前表示
+    if(i===selected){t.fillStyle="#fff"; t.font="24px sans-serif"; t.textAlign="center"; t.fillText(apps[i].name,x,cy+140);}
   }
 }
 
@@ -77,6 +86,7 @@ function drawLoading(){
   bctx.clearRect(0,0,c.width,c.height); drawHome(bctx);
   ctx.filter="blur(12px)"; ctx.drawImage(buffer,0,0); ctx.filter="none";
   ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(0,0,c.width,c.height);
+
   ctx.fillStyle="#fff"; ctx.font="28px sans-serif"; ctx.textAlign="center";
   ctx.fillText(apps[selected].name+" を起動しています",c.width/2,c.height/2-80);
 
@@ -103,16 +113,22 @@ function loop(){
   ctx.clearRect(0,0,c.width,c.height);
 
   if(state==="home") drawHome(ctx);
+
   if(state==="launching"){ 
+    drawHome(ctx);
     zoom+=0.05; fade+=0.05;
     ctx.fillStyle=`rgba(0,0,0,${fade})`; ctx.fillRect(0,0,c.width,c.height);
     if(fade>=1){state="loading"; timer=0; zoom=1; fade=0;}
   }
+
   if(state==="loading"){ drawLoading(); timer++; if(timer>90){state="app"; timer=0;} }
+
   if(state==="app") drawApp();
+
   if(state==="returning"){ 
+    drawHome(ctx);
     timer++; const t=Math.min(timer/25,1); const e=easeOutCubic(t);
-    zoom=1+(1.6-1)*(1-e); fade=1-e;
+    zoom=1+(1.2-1)*(1-e); fade=1-e;
     ctx.fillStyle=`rgba(0,0,0,${fade})`; ctx.fillRect(0,0,c.width,c.height);
     if(t>=1){state="home"; zoom=1; fade=0; timer=0;}
   }
