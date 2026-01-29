@@ -26,7 +26,7 @@ window.addEventListener("resize",resize); resize();
 
 function easeOutCubic(t){return 1-Math.pow(1-t,3);}
 
-/* --- icons --- */
+/* --- Canvasでアイコン生成 --- */
 function baseIcon(c1,c2){
   const cv=document.createElement("canvas");
   cv.width=cv.height=160;
@@ -42,6 +42,7 @@ function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9"); x.strokeStyle
 function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a"); x.fillStyle="#fff"; x.fillRect(40,45,80,55); return cv;}
 function iconPower(){const{cv,x}=baseIcon("#aaa","#666"); x.strokeStyle="#fff"; x.lineWidth=10; x.beginPath(); x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75); x.stroke(); x.beginPath(); x.moveTo(80,30); x.lineTo(80,60); x.stroke(); return cv;}
 
+/* --- アプリリスト --- */
 const apps=[
   {name:"ゲーム",icon:iconGame()},
   {name:"設定",icon:iconSettings()},
@@ -72,7 +73,7 @@ function drawHome(t){
 
     t.save(); t.translate(x,cy); t.scale(s,s);
     if(i===selected){ t.shadowColor="#0ff"; t.shadowBlur=30; }
-    t.drawImage(apps[i].icon,-80,-80,160,160);
+    t.drawImage(apps[i].icon,-80,-80,160,160); // Canvas生成済みなので安全
     t.restore();
 
     if(i===selected){
