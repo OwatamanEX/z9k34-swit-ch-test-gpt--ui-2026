@@ -80,6 +80,7 @@ function drawLoading(){
   ctx.fillStyle="#fff"; ctx.font="28px sans-serif"; ctx.textAlign="center";
   ctx.fillText(apps[selected].name+" を起動しています",c.width/2,c.height/2-80);
 
+  // 回転ドット
   const cx=c.width/2,cy=c.height/2,R=32,r=5,N=8;
   spinSpeed+=(0.08-spinSpeed)*0.08; spin+=spinSpeed;
   for(let i=0;i<N;i++){
@@ -102,12 +103,12 @@ function loop(){
   ctx.clearRect(0,0,c.width,c.height);
 
   if(state==="home") drawHome(ctx);
-  if(state==="launching") { 
+  if(state==="launching"){ 
     zoom+=0.05; fade+=0.05;
     ctx.fillStyle=`rgba(0,0,0,${fade})`; ctx.fillRect(0,0,c.width,c.height);
     if(fade>=1){state="loading"; timer=0; zoom=1; fade=0;}
   }
-  if(state==="loading"){ drawLoading(); timer++; if(timer>60){state="app"; timer=0;} }
+  if(state==="loading"){ drawLoading(); timer++; if(timer>90){state="app"; timer=0;} }
   if(state==="app") drawApp();
   if(state==="returning"){ 
     timer++; const t=Math.min(timer/25,1); const e=easeOutCubic(t);
@@ -125,7 +126,7 @@ window.addEventListener("keydown",e=>{
   if(state==="home"){
     if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
     if(e.key==="ArrowLeft") selected=(selected-1+apps.length)%apps.length;
-    if(e.key==="Enter"){state="launching"; zoom=1; fade=0; timer=0;} // ホームでEnterが確実に反応
+    if(e.key==="Enter"){state="launching"; zoom=1; fade=0; timer=0;}
   }else if(state==="app" && e.key==="Escape"){
     state="returning"; timer=0;
   }
