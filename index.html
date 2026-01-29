@@ -5,7 +5,10 @@
 <title>Switch UI</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;}
+html,body{
+  margin:0;width:100%;height:100%;
+  background:#000;overflow:hidden;
+}
 canvas{display:block;}
 </style>
 </head>
@@ -13,30 +16,33 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 
 <script>
-/* ===== 基本 ===== */
+/* ================= 基本 ================= */
 const c=document.getElementById("c");
 const ctx=c.getContext("2d");
-const buffer=document.createElement("canvas");
-const bctx=buffer.getContext("2d");
-function resize(){c.width=innerWidth;c.height=innerHeight;buffer.width=c.width;buffer.height=c.height;}
-addEventListener("resize",resize); resize();
+function resize(){c.width=innerWidth;c.height=innerHeight;}
+addEventListener("resize",resize);resize();
 
+function lerp(a,b,t){return a+(b-a)*t;}
 function easeOutCubic(t){return 1-Math.pow(1-t,3);}
 
-/* ===== アイコン生成 ===== */
+/* ================= アイコン生成 ================= */
 function baseIcon(c1,c2){
   const cv=document.createElement("canvas");
   cv.width=cv.height=160;
   const x=cv.getContext("2d");
   const g=x.createLinearGradient(0,0,160,160);
-  g.addColorStop(0,c1); g.addColorStop(1,c2);
-  x.fillStyle=g; x.fillRect(0,0,160,160);
+  g.addColorStop(0,c1);g.addColorStop(1,c2);
+  x.fillStyle=g;x.fillRect(0,0,160,160);
   return {cv,x};
 }
-function iconGame(){const{cv,x}=baseIcon("#ff6a6a","#d93030");x.fillStyle="#fff";x.beginPath();x.moveTo(60,45);x.lineTo(115,80);x.lineTo(60,115);x.fill();return cv;}
-function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9");x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,80,28,0,Math.PI*2);x.stroke();return cv;}
-function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a");x.fillStyle="#fff";x.fillRect(40,45,80,55);return cv;}
-function iconPower(){const{cv,x}=baseIcon("#aaa","#666");x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75);x.stroke();return cv;}
+function iconGame(){const{cv,x}=baseIcon("#ff6a6a","#d93030");
+x.fillStyle="#fff";x.beginPath();x.moveTo(60,45);x.lineTo(115,80);x.lineTo(60,115);x.fill();return cv;}
+function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9");
+x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,80,28,0,Math.PI*2);x.stroke();return cv;}
+function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a");
+x.fillStyle="#fff";x.fillRect(40,45,80,55);return cv;}
+function iconPower(){const{cv,x}=baseIcon("#aaa","#666");
+x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75);x.stroke();return cv;}
 
 const apps=[
   {name:"ゲーム",icon:iconGame()},
@@ -45,112 +51,156 @@ const apps=[
   {name:"電源",icon:iconPower()}
 ];
 
-/* ===== 状態 ===== */
+/* ================= UI状態 ================= */
 let state="home";
 let selected=0;
 let launchedApp=null;
-let pos=0,vel=0,fade=0,timer=0;
-let launchZoom=1;
+let pos=0,vel=0;
+let scales=apps.map(()=>1);
 const spacing=220;
-let scales=Array(apps.length).fill(1);
 
-/* ===== ホーム描画 ===== */
-function drawHome(t){
+/* ================= ホーム描画（滑らか） ================= */
+function drawHome(){
   const cx=c.width/2,cy=c.height/2;
-  vel=(vel+((selected*spacing)-pos)*0.12)*0.75;
+  vel=lerp(vel,(selected*spacing-pos)*0.12,0.2);
   pos+=vel;
+
   for(let i=0;i<apps.length;i++){
-    scales[i]+=( (i===selected?1.35:1)-scales[i])*0.1;
+    const target=(i===selected)?1.4:1;
+    scales[i]=lerp(scales[i],target,0.15);
+
     const x=cx+i*spacing-pos;
-    const s=scales[i]*((state==="launching")?launchZoom:1);
-    t.save();
-    t.translate(x,cy); t.scale(s,s);
-    if(i===selected){t.shadowColor="#0ff";t.shadowBlur=30;}
-    t.drawImage(apps[i].icon,-80,-80,160,160);
-    t.restore();
+    ctx.save();
+    ctx.translate(x,cy);
+    ctx.scale(scales[i],scales[i]);
     if(i===selected){
-      t.fillStyle="#fff";t.font="24px sans-serif";t.textAlign="center";
-      t.fillText(apps[i].name,x,cy+140);
+      ctx.shadowColor="#0ff";
+      ctx.shadowBlur=30;
+    }
+    ctx.drawImage(apps[i].icon,-80,-80,160,160);
+    ctx.restore();
+
+    if(i===selected){
+      ctx.fillStyle="#fff";
+      ctx.font="24px sans-serif";
+      ctx.textAlign="center";
+      ctx.fillText(apps[i].name,x,cy+140);
     }
   }
 }
 
-/* ===== ミニゲーム ===== */
-let px,py,balls,gameOver;
+/* ================= ミニゲーム ================= */
+let px,py,vx;
+let balls=[];
+let time=0;
+let gameOver=false;
+
 function startGame(){
-  px=c.width/2; py=c.height-60;
-  balls=[]; gameOver=false;
+  px=c.width/2;
+  py=c.height-70;
+  vx=0;
+  balls=[];
+  time=0;
+  gameOver=false;
 }
+
 function drawGame(){
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle="#0ff"; ctx.fillRect(px-20,py-20,40,40);
-  if(Math.random()<0.03) balls.push({x:Math.random()*c.width,y:-10});
+  time++;
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,c.width,c.height);
+
+  /* 難易度 */
+  const spawnRate=Math.min(0.02+time*0.00001,0.08);
+  const fallSpeed=4+time*0.002;
+
+  /* プレイヤー */
+  vx*=0.85;
+  px+=vx;
+  px=Math.max(30,Math.min(c.width-30,px));
+
+  ctx.fillStyle="#0ff";
+  ctx.fillRect(px-25,py-25,50,50);
+
+  /* 落下物 */
+  if(Math.random()<spawnRate){
+    balls.push({x:Math.random()*c.width,y:-20});
+  }
+
   ctx.fillStyle="#f44";
   for(const b of balls){
-    b.y+=6;
-    ctx.beginPath(); ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fill();
-    if(Math.abs(b.x-px)<25 && Math.abs(b.y-py)<25) gameOver=true;
+    b.y+=fallSpeed;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,12,0,Math.PI*2);
+    ctx.fill();
+
+    if(Math.abs(b.x-px)<35 && Math.abs(b.y-py)<35){
+      gameOver=true;
+    }
   }
-  balls=balls.filter(b=>b.y<c.height+20);
+
+  balls=balls.filter(b=>b.y<c.height+30);
+
+  /* UI */
+  ctx.fillStyle="#fff";
+  ctx.font="20px sans-serif";
+  ctx.fillText(`TIME ${Math.floor(time/60)}`,20,30);
+
   if(gameOver){
-    ctx.fillStyle="#fff";ctx.font="48px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle="rgba(0,0,0,0.6)";
+    ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle="#fff";
+    ctx.font="48px sans-serif";
+    ctx.textAlign="center";
     ctx.fillText("GAME OVER",c.width/2,c.height/2);
+    ctx.font="20px sans-serif";
+    ctx.fillText("Escで戻る",c.width/2,c.height/2+50);
   }
 }
 
-/* ===== ループ ===== */
+/* ================= メインループ ================= */
 function loop(){
   ctx.clearRect(0,0,c.width,c.height);
 
-  if(state==="home") drawHome(ctx);
-
-  if(state==="launching"){
-    drawHome(ctx);
-    launchZoom+=(1.6-launchZoom)*0.1;
-    fade+=0.05;
-    ctx.fillStyle=`rgba(0,0,0,${fade})`; ctx.fillRect(0,0,c.width,c.height);
-    if(fade>=1){state="loading";timer=0;fade=0;}
-  }
-
-  if(state==="loading"){
-    timer++;
-    if(timer>60){
-      state="app";
-      if(launchedApp===0) startGame();
-    }
-  }
+  if(state==="home") drawHome();
 
   if(state==="app"){
     if(launchedApp===0) drawGame();
-    else{
-      ctx.fillStyle="#111";ctx.fillRect(0,0,c.width,c.height);
-      ctx.fillStyle="#fff";ctx.font="48px sans-serif";ctx.textAlign="center";
-      ctx.fillText(apps[launchedApp].name,c.width/2,c.height/2);
-    }
   }
 
   requestAnimationFrame(loop);
 }
 loop();
 
-/* ===== 操作 ===== */
+/* ================= 操作 ================= */
+const keys={};
 addEventListener("keydown",e=>{
+  keys[e.key]=true;
   if(state==="home"){
     if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
     if(e.key==="ArrowLeft") selected=(selected-1+apps.length)%apps.length;
     if(e.key==="Enter"){
       launchedApp=selected;
-      state="launching";
+      if(launchedApp===0){
+        startGame();
+        state="app";
+      }
     }
   }
-  else if(state==="app"){
-    if(launchedApp===0 && !gameOver){
-      if(e.key==="ArrowLeft") px-=20;
-      if(e.key==="ArrowRight") px+=20;
-    }
-    if(e.key==="Escape") state="home";
+  if(state==="app" && e.key==="Escape"){
+    state="home";
   }
 });
+
+addEventListener("keyup",e=>keys[e.key]=false);
+
+function input(){
+  if(state==="app" && launchedApp===0 && !gameOver){
+    if(keys.ArrowLeft) vx-=1.2;
+    if(keys.ArrowRight) vx+=1.2;
+  }
+  requestAnimationFrame(input);
+}
+input();
 </script>
 </body>
 </html>
