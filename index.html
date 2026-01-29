@@ -1,23 +1,16 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<link rel="manifest" href="manifest.json">
 <meta charset="UTF-8">
 <title>Switch UI</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#000000">
 
-<!-- ===== Manifest (inline) ===== -->
-<link rel="manifest" href='data:application/manifest+json,{
-  "name":"Switch UI",
-  "short_name":"SwitchUI",
-  "start_url":".",
-  "display":"standalone",
-  "background_color":"#000000",
-  "theme_color":"#000000",
-  "orientation":"landscape"
-}'>
+<!-- ブラウザタブ用アイコン -->
+<link rel="icon" type="image/png" href="favicon.png">
+
+<!-- PWA 用 manifest -->
+<link rel="manifest" href="manifest.json">
 
 <style>
 html,body{
@@ -40,14 +33,10 @@ if("serviceWorker" in navigator){
   const swCode = `
     const CACHE="switch-ui-single";
     self.addEventListener("install",e=>{
-      e.waitUntil(
-        caches.open(CACHE).then(c=>c.addAll(["./"]))
-      );
+      e.waitUntil(caches.open(CACHE).then(c=>c.addAll(["./"])));
     });
     self.addEventListener("fetch",e=>{
-      e.respondWith(
-        caches.match(e.request).then(r=>r||fetch(e.request))
-      );
+      e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));
     });
   `;
   const blob = new Blob([swCode],{type:"text/javascript"});
@@ -62,10 +51,7 @@ const ctx=c.getContext("2d");
 const buffer=document.createElement("canvas");
 const bctx=buffer.getContext("2d");
 
-function resize(){
-  c.width=innerWidth; c.height=innerHeight;
-  buffer.width=c.width; buffer.height=c.height;
-}
+function resize(){c.width=innerWidth; c.height=innerHeight; buffer.width=c.width; buffer.height=c.height;}
 addEventListener("resize",resize); resize();
 
 function easeOutCubic(t){return 1-Math.pow(1-t,3);}
@@ -80,19 +66,10 @@ function baseIcon(c1,c2){
   x.fillStyle=g; x.fillRect(0,0,160,160);
   return {cv,x};
 }
-function iconGame(){const{cv,x}=baseIcon("#ff6a6a","#d93030");
-x.fillStyle="#fff";x.beginPath();x.moveTo(60,45);x.lineTo(115,80);x.lineTo(60,115);x.fill();return cv;}
-function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9");
-x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,80,28,0,Math.PI*2);x.stroke();
-for(let i=0;i<6;i++){const a=i*Math.PI/3;
-x.beginPath();x.moveTo(80+Math.cos(a)*36,80+Math.sin(a)*36);
-x.lineTo(80+Math.cos(a)*52,80+Math.sin(a)*52);x.stroke();}return cv;}
-function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a");
-x.fillStyle="#fff";x.fillRect(40,45,80,55);return cv;}
-function iconPower(){const{cv,x}=baseIcon("#aaa","#666");
-x.strokeStyle="#fff";x.lineWidth=10;
-x.beginPath();x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75);x.stroke();
-x.beginPath();x.moveTo(80,30);x.lineTo(80,60);x.stroke();return cv;}
+function iconGame(){const{cv,x}=baseIcon("#ff6a6a","#d93030");x.fillStyle="#fff";x.beginPath();x.moveTo(60,45);x.lineTo(115,80);x.lineTo(60,115);x.fill();return cv;}
+function iconSettings(){const{cv,x}=baseIcon("#5f7cff","#2f45d9");x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,80,28,0,Math.PI*2);x.stroke();for(let i=0;i<6;i++){const a=i*Math.PI/3;x.beginPath();x.moveTo(80+Math.cos(a)*36,80+Math.sin(a)*36);x.lineTo(80+Math.cos(a)*52,80+Math.sin(a)*52);x.stroke();}return cv;}
+function iconAlbum(){const{cv,x}=baseIcon("#ffc96a","#e6a12a");x.fillStyle="#fff";x.fillRect(40,45,80,55);return cv;}
+function iconPower(){const{cv,x}=baseIcon("#aaa","#666");x.strokeStyle="#fff";x.lineWidth=10;x.beginPath();x.arc(80,90,30,Math.PI*0.25,Math.PI*0.75);x.stroke();x.beginPath();x.moveTo(80,30);x.lineTo(80,60);x.stroke();return cv;}
 
 const apps=[
 {name:"ゲーム",icon:iconGame()},
