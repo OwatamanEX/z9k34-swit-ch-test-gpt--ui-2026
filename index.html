@@ -101,6 +101,13 @@ function drawApp(){
   ctx.font="20px sans-serif"; ctx.fillText("EscでHOMEに戻る",c.width/2,c.height/2+60);
 }
 
+// --- ロード中の仮描画 ---
+function drawLoadingScreen(){
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,c.width,c.height);
+  ctx.fillStyle="#fff"; ctx.font="36px sans-serif"; ctx.textAlign="center";
+  ctx.fillText("読み込み中...", c.width/2, c.height/2);
+}
+
 // --- メインループ ---
 function loop(){
   ctx.clearRect(0,0,c.width,c.height);
@@ -139,10 +146,13 @@ apps.forEach(app=>{
   app.icon.onload = ()=>{
     loadedCount++;
     if(loadedCount === apps.length){
-      loop(); // 全てのアイコンロード後に描画開始
+      loop(); // 全ロード完了後に描画開始
     }
   };
 });
+
+// 画像ロード中は仮描画
+drawLoadingScreen();
 
 // --- キー操作 ---
 window.addEventListener("keydown",e=>{
