@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Switch UI + Space Danmaku</title>
+<title>Switch UI Main</title>
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
 html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;}
@@ -23,205 +23,133 @@ const keys={};
 addEventListener("keydown",e=>keys[e.key]=true);
 addEventListener("keyup",e=>keys[e.key]=false);
 
-let state="home";
+let state="home"; // home | game
 
-/* ================= 背景（星） ================= */
+/* ================= 背景 ================= */
 const stars=[];
-for(let i=0;i<120;i++){
-  stars.push({
-    x:Math.random()*innerWidth,
-    y:Math.random()*innerHeight,
-    s:Math.random()*2+1
-  });
+for(let i=0;i<150;i++){
+  stars.push({x:Math.random()*c.width,y:Math.random()*c.height,s:Math.random()*2+1});
 }
-
 function drawStars(speed){
   ctx.fillStyle="#000";
   ctx.fillRect(0,0,c.width,c.height);
   ctx.fillStyle="#fff";
   for(const st of stars){
     st.y+=st.s*speed;
-    if(st.y>c.height){
-      st.y=0;
-      st.x=Math.random()*c.width;
-    }
+    if(st.y>c.height){st.y=0;st.x=Math.random()*c.width;}
     ctx.fillRect(st.x,st.y,st.s,st.s);
   }
 }
 
-/* ================= HOME ================= */
-let homeScale=1;
+/* ================= UIアイコン ================= */
+function makeIcon(color){
+  const cv=document.createElement("canvas");
+  cv.width=cv.height=160;
+  const x=cv.getContext("2d");
+  const g=x.createLinearGradient(0,0,160,160);
+  g.addColorStop(0,color);
+  g.addColorStop(1,"#000");
+  x.fillStyle=g;
+  x.fillRect(0,0,160,160);
+  return cv;
+}
+
+const apps=[
+  {name:"ゲーム",icon:makeIcon("#ff5f5f"),type:"game"},
+  {name:"設定",icon:makeIcon("#5f7cff")},
+  {name:"アルバム",icon:makeIcon("#ffc96a")}
+];
+
+let selected=0;
+let pos=0,vel=0;
+const spacing=220;
+
+/* ================= HOME UI ================= */
 function drawHome(){
-  drawStars(0.3);
-  homeScale+= (1.3-homeScale)*0.08;
+  drawStars(0.4);
+  const cx=c.width/2,cy=c.height/2;
+  const target=selected*spacing;
+  vel+=(target-pos)*0.12;
+  vel*=0.75;
+  pos+=vel;
 
-  ctx.save();
-  ctx.translate(c.width/2,c.height/2);
-  ctx.scale(homeScale,homeScale);
-  ctx.fillStyle="#0ff";
-  ctx.beginPath();
-  ctx.moveTo(0,-30);
-  ctx.lineTo(20,25);
-  ctx.lineTo(0,10);
-  ctx.lineTo(-20,25);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  for(let i=0;i<apps.length;i++){
+    const x=cx+i*spacing-pos;
+    const d=Math.abs(i*spacing-pos)/spacing;
+    const s=Math.max(0.8,1.4-d*0.4);
 
-  ctx.fillStyle="#fff";
-  ctx.font="28px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("SPACE DANMAKU",c.width/2,c.height/2+100);
-  ctx.font="18px sans-serif";
-  ctx.fillText("Enterで開始",c.width/2,c.height/2+140);
+    ctx.save();
+    ctx.translate(x,cy);
+    ctx.scale(s,s);
+    if(i===selected){
+      ctx.shadowColor="#0ff";
+      ctx.shadowBlur=25;
+    }
+    ctx.drawImage(apps[i].icon,-80,-80,160,160);
+    ctx.restore();
+
+    if(i===selected){
+      ctx.fillStyle="#fff";
+      ctx.font="24px sans-serif";
+      ctx.textAlign="center";
+      ctx.fillText(apps[i].name,x,cy+140);
+    }
+  }
 }
 
-/* ================= 自機 ================= */
-function drawPlayer(x,y){
-  ctx.save();
-  ctx.translate(x,y);
-  ctx.fillStyle="#0ff";
-  ctx.beginPath();
-  ctx.moveTo(0,-18);
-  ctx.lineTo(12,14);
-  ctx.lineTo(0,8);
-  ctx.lineTo(-12,14);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle="#fff";
-  ctx.beginPath();
-  ctx.arc(0,0,5,0,Math.PI*2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-/* ================= 弾 ================= */
-function drawBullet(b){
-  ctx.save();
-  ctx.translate(b.x,b.y);
-  ctx.rotate(b.a);
-  ctx.fillStyle="#f55";
-  ctx.beginPath();
-  ctx.moveTo(0,-6);
-  ctx.lineTo(3,6);
-  ctx.lineTo(-3,6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-/* ================= ゲーム ================= */
-let px,py,vx,vy,bullets,time,gameOver;
-const hitR=5;
-const hiKey="space_danmaku_hi";
-let highScore=Number(localStorage.getItem(hiKey)||0);
-
+/* ================= ゲーム（サブ） ================= */
+let px,py,vx,vy;
 function startGame(){
   px=c.width/2;
   py=c.height*0.8;
   vx=vy=0;
-  bullets=[];
-  time=0;
-  gameOver=false;
 }
-
-function spawnBullets(){
-  const level=time/600;
-  const rings=2+Math.floor(level);
-  const perRing=18+Math.floor(level*8);
-  const speed=5+level*1.5;
-
-  for(let r=0;r<rings;r++){
-    for(let i=0;i<perRing;i++){
-      const a=i*(Math.PI*2/perRing)+time*0.03*(r%2?1:-1);
-      bullets.push({
-        x:c.width/2,
-        y:120,
-        vx:Math.cos(a)*(speed+r),
-        vy:Math.sin(a)*(speed+r),
-        a
-      });
-    }
-  }
-}
-
 function drawGame(){
-  drawStars(1+time/2000);
-  time++;
+  drawStars(1.2);
 
-  /* 移動 */
-  const accel=0.9;
-  if(keys.ArrowLeft) vx-=accel;
-  if(keys.ArrowRight) vx+=accel;
-  if(keys.ArrowUp) vy-=accel;
-  if(keys.ArrowDown) vy+=accel;
-  vx*=0.92; vy*=0.92;
-  const max=10;
-  vx=Math.max(-max,Math.min(max,vx));
-  vy=Math.max(-max,Math.min(max,vy));
-  px+=vx; py+=vy;
-  px=Math.max(20,Math.min(c.width-20,px));
-  py=Math.max(20,Math.min(c.height-20,py));
+  const a=0.6;
+  if(keys.ArrowLeft)vx-=a;
+  if(keys.ArrowRight)vx+=a;
+  if(keys.ArrowUp)vy-=a;
+  if(keys.ArrowDown)vy+=a;
+  vx*=0.9;vy*=0.9;
+  px+=vx;py+=vy;
 
-  drawPlayer(px,py);
+  ctx.fillStyle="#0ff";
+  ctx.beginPath();
+  ctx.moveTo(px,py-15);
+  ctx.lineTo(px+10,py+10);
+  ctx.lineTo(px-10,py+10);
+  ctx.closePath();
+  ctx.fill();
 
-  /* 弾幕 */
-  if(time%18===0) spawnBullets();
-  for(const b of bullets){
-    b.x+=b.vx;
-    b.y+=b.vy;
-    drawBullet(b);
-    if(Math.hypot(b.x-px,b.y-py)<hitR+4) gameOver=true;
-  }
-  bullets=bullets.filter(b=>b.x>-100&&b.x<c.width+100&&b.y>-100&&b.y<c.height+100);
-
-  /* UI */
-  const score=Math.floor(time/60);
   ctx.fillStyle="#fff";
   ctx.font="18px sans-serif";
-  ctx.textAlign="left";
-  ctx.fillText("SCORE "+score,20,30);
-  ctx.fillText("HI "+highScore,20,55);
-
-  if(gameOver){
-    if(score>highScore){
-      highScore=score;
-      localStorage.setItem(hiKey,highScore);
-    }
-    ctx.fillStyle="rgba(0,0,0,0.7)";
-    ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle="#fff";
-    ctx.font="36px sans-serif";
-    ctx.textAlign="center";
-    ctx.fillText("GAME OVER",c.width/2,c.height/2);
-    ctx.font="18px sans-serif";
-    ctx.fillText("Enter: 再開 / Esc: HOME",c.width/2,c.height/2+50);
-  }
+  ctx.textAlign="center";
+  ctx.fillText("EscでHOMEに戻る",c.width/2,40);
 }
 
 /* ================= ループ ================= */
 function loop(){
   if(state==="home") drawHome();
-  if(state==="game"){
-    if(!gameOver) drawGame();
-    else drawGame();
-  }
+  if(state==="game") drawGame();
   requestAnimationFrame(loop);
 }
 loop();
 
 /* ================= 操作 ================= */
 addEventListener("keydown",e=>{
-  if(state==="home" && e.key==="Enter"){
-    startGame();
-    state="game";
-  }
-  if(state==="game" && gameOver){
-    if(e.key==="Enter") startGame();
-    if(e.key==="Escape"){
-      state="home";
-      homeScale=1;
+  if(state==="home"){
+    if(e.key==="ArrowRight")selected=(selected+1)%apps.length;
+    if(e.key==="ArrowLeft")selected=(selected-1+apps.length)%apps.length;
+    if(e.key==="Enter"){
+      if(apps[selected].type==="game"){
+        startGame();
+        state="game";
+      }
     }
+  }else if(state==="game" && e.key==="Escape"){
+    state="home";
   }
 });
 </script>
