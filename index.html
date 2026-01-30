@@ -2,10 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Switch UI Main</title>
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Switch Style UI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;}
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  overflow:hidden;
+}
 canvas{display:block;}
 </style>
 </head>
@@ -14,77 +20,114 @@ canvas{display:block;}
 
 <script>
 /* ================= 基本 ================= */
-const c=document.getElementById("c");
-const ctx=c.getContext("2d");
-function resize(){c.width=innerWidth;c.height=innerHeight;}
-addEventListener("resize",resize);resize();
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
-const keys={};
-addEventListener("keydown",e=>keys[e.key]=true);
-addEventListener("keyup",e=>keys[e.key]=false);
-
-let state="home"; // home | game
-
-/* ================= 背景 ================= */
-const stars=[];
-for(let i=0;i<150;i++){
-  stars.push({x:Math.random()*c.width,y:Math.random()*c.height,s:Math.random()*2+1});
+function resize(){
+  c.width = innerWidth;
+  c.height = innerHeight;
 }
-function drawStars(speed){
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle="#fff";
-  for(const st of stars){
-    st.y+=st.s*speed;
-    if(st.y>c.height){st.y=0;st.x=Math.random()*c.width;}
-    ctx.fillRect(st.x,st.y,st.s,st.s);
-  }
+addEventListener("resize", resize);
+resize();
+
+/* ================= イージング ================= */
+function easeOutCubic(t){
+  return 1 - Math.pow(1 - t, 3);
 }
 
-/* ================= UIアイコン ================= */
-function makeIcon(color){
+/* ================= アイコン生成 ================= */
+function baseIcon(c1,c2){
   const cv=document.createElement("canvas");
   cv.width=cv.height=160;
   const x=cv.getContext("2d");
   const g=x.createLinearGradient(0,0,160,160);
-  g.addColorStop(0,color);
-  g.addColorStop(1,"#000");
+  g.addColorStop(0,c1);
+  g.addColorStop(1,c2);
   x.fillStyle=g;
   x.fillRect(0,0,160,160);
+  return {cv,x};
+}
+
+function iconGame(){
+  const {cv,x}=baseIcon("#ff6a6a","#d93030");
+  x.fillStyle="#fff";
+  x.beginPath();
+  x.moveTo(60,45);
+  x.lineTo(115,80);
+  x.lineTo(60,115);
+  x.fill();
+  return cv;
+}
+function iconSettings(){
+  const {cv,x}=baseIcon("#5f7cff","#2f45d9");
+  x.strokeStyle="#fff";
+  x.lineWidth=10;
+  x.beginPath();
+  x.arc(80,80,28,0,Math.PI*2);
+  x.stroke();
+  for(let i=0;i<6;i++){
+    const a=i*Math.PI/3;
+    x.beginPath();
+    x.moveTo(80+Math.cos(a)*36,80+Math.sin(a)*36);
+    x.lineTo(80+Math.cos(a)*52,80+Math.sin(a)*52);
+    x.stroke();
+  }
+  return cv;
+}
+function iconAlbum(){
+  const {cv,x}=baseIcon("#ffc96a","#e6a12a");
+  x.fillStyle="#fff";
+  x.fillRect(40,45,80,55);
   return cv;
 }
 
-const apps=[
-  {name:"ゲーム",icon:makeIcon("#ff5f5f"),type:"game"},
-  {name:"設定",icon:makeIcon("#5f7cff")},
-  {name:"アルバム",icon:makeIcon("#ffc96a")}
+/* ================= アプリ一覧 ================= */
+const apps = [
+  { name:"ゲーム", icon:iconGame(), type:"game" },
+  { name:"設定", icon:iconSettings(), type:"dummy" },
+  { name:"アルバム", icon:iconAlbum(), type:"dummy" }
 ];
 
-let selected=0;
-let pos=0,vel=0;
-const spacing=220;
+/* ================= UI状態 ================= */
+let state = "home"; // home | app
+let selected = 0;
+let pos = 0;
+let vel = 0;
+let zoom = 1;
+let fade = 0;
+let timer = 0;
 
-/* ================= HOME UI ================= */
+const spacing = 220;
+
+/* ================= HOME描画 ================= */
 function drawHome(){
-  drawStars(0.4);
-  const cx=c.width/2,cy=c.height/2;
-  const target=selected*spacing;
-  vel+=(target-pos)*0.12;
-  vel*=0.75;
-  pos+=vel;
+  ctx.clearRect(0,0,c.width,c.height);
+
+  const cx = c.width/2;
+  const cy = c.height/2;
+
+  const target = selected * spacing;
+  vel = (vel + (target - pos) * 0.12) * 0.75;
+  pos += vel;
 
   for(let i=0;i<apps.length;i++){
-    const x=cx+i*spacing-pos;
-    const d=Math.abs(i*spacing-pos)/spacing;
-    const s=Math.max(0.8,1.4-d*0.4);
+    const x = cx + i*spacing - pos;
+    const d = Math.abs(i*spacing - pos) / spacing;
+    let s = Math.max(0.8, 1.35 - d*0.35);
+
+    if(state==="launching" && i===selected){
+      s *= zoom;
+    }
 
     ctx.save();
     ctx.translate(x,cy);
     ctx.scale(s,s);
+
     if(i===selected){
       ctx.shadowColor="#0ff";
-      ctx.shadowBlur=25;
+      ctx.shadowBlur=30;
     }
+
     ctx.drawImage(apps[i].icon,-80,-80,160,160);
     ctx.restore();
 
@@ -92,63 +135,59 @@ function drawHome(){
       ctx.fillStyle="#fff";
       ctx.font="24px sans-serif";
       ctx.textAlign="center";
-      ctx.fillText(apps[i].name,x,cy+140);
+      ctx.fillText(apps[i].name, x, cy+140);
     }
   }
 }
 
-/* ================= ゲーム（サブ） ================= */
-let px,py,vx,vy;
-function startGame(){
-  px=c.width/2;
-  py=c.height*0.8;
-  vx=vy=0;
-}
-function drawGame(){
-  drawStars(1.2);
-
-  const a=0.6;
-  if(keys.ArrowLeft)vx-=a;
-  if(keys.ArrowRight)vx+=a;
-  if(keys.ArrowUp)vy-=a;
-  if(keys.ArrowDown)vy+=a;
-  vx*=0.9;vy*=0.9;
-  px+=vx;py+=vy;
-
-  ctx.fillStyle="#0ff";
-  ctx.beginPath();
-  ctx.moveTo(px,py-15);
-  ctx.lineTo(px+10,py+10);
-  ctx.lineTo(px-10,py+10);
-  ctx.closePath();
-  ctx.fill();
-
+/* ================= アプリ画面 ================= */
+function drawApp(){
+  ctx.fillStyle="#111";
+  ctx.fillRect(0,0,c.width,c.height);
   ctx.fillStyle="#fff";
-  ctx.font="18px sans-serif";
+  ctx.font="40px sans-serif";
   ctx.textAlign="center";
-  ctx.fillText("EscでHOMEに戻る",c.width/2,40);
+  ctx.fillText(apps[selected].name, c.width/2, c.height/2);
+  ctx.font="20px sans-serif";
+  ctx.fillText("EscでHOMEに戻る", c.width/2, c.height/2+60);
 }
 
-/* ================= ループ ================= */
+/* ================= メインループ ================= */
 function loop(){
-  if(state==="home") drawHome();
-  if(state==="game") drawGame();
+  if(state==="home" || state==="launching"){
+    drawHome();
+  }
+  if(state==="app"){
+    drawApp();
+  }
+
+  if(state==="launching"){
+    zoom += 0.05;
+    fade += 0.05;
+    ctx.fillStyle = `rgba(0,0,0,${fade})`;
+    ctx.fillRect(0,0,c.width,c.height);
+    if(fade>=1){
+      state="app";
+      zoom=1;
+      fade=0;
+    }
+  }
+
   requestAnimationFrame(loop);
 }
 loop();
 
 /* ================= 操作 ================= */
-addEventListener("keydown",e=>{
+addEventListener("keydown", e=>{
   if(state==="home"){
-    if(e.key==="ArrowRight")selected=(selected+1)%apps.length;
-    if(e.key==="ArrowLeft")selected=(selected-1+apps.length)%apps.length;
+    if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
+    if(e.key==="ArrowLeft") selected=(selected-1+apps.length)%apps.length;
     if(e.key==="Enter"){
-      if(apps[selected].type==="game"){
-        startGame();
-        state="game";
-      }
+      state="launching";
+      zoom=1;
+      fade=0;
     }
-  }else if(state==="game" && e.key==="Escape"){
+  }else if(state==="app" && e.key==="Escape"){
     state="home";
   }
 });
