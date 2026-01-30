@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Switch-like UI</title>
+<title>Switch Style UI</title>
 <style>
 html,body{
   margin:0;
@@ -15,31 +15,30 @@ canvas{display:block}
 <body>
 <canvas id="c"></canvas>
 <script>
-/* ===== 基本設定 ===== */
+/* ===== 基本 ===== */
 const c=document.getElementById("c");
 const ctx=c.getContext("2d");
-function resize(){
-  c.width=innerWidth;
-  c.height=innerHeight;
-}
-addEventListener("resize",resize);
-resize();
+function resize(){c.width=innerWidth;c.height=innerHeight}
+addEventListener("resize",resize);resize();
 
-/* ===== アプリ定義 ===== */
+/* ===== 設定 ===== */
+const settings={
+  uiSpeed:0.15,
+  difficulty:1
+};
+
+/* ===== アプリ ===== */
 const apps=[
-  {name:"GAME",type:"game",color:"#ff4d4d"},
-  {name:"SETTINGS",type:"settings",color:"#4dd2ff"},
+  {name:"GAME",type:"game",color:"#ff5a5a"},
+  {name:"SETTINGS",type:"settings",color:"#5ac8ff"},
   {name:"ALBUM",type:"dummy",color:"#aaa"},
   {name:"POWER",type:"dummy",color:"#6aff6a"},
 ];
 
-let selected=0;
-let state="home";
-let fade=0;
-let zoom=1;
+let state="home",selected=0,fade=0,zoom=1;
 
 /* ===== 背景 ===== */
-function drawBackground(){
+function bg(){
   const g=ctx.createLinearGradient(0,0,0,c.height);
   g.addColorStop(0,"#111");
   g.addColorStop(1,"#000");
@@ -47,112 +46,128 @@ function drawBackground(){
   ctx.fillRect(0,0,c.width,c.height);
 }
 
-/* ===== アイコン描画 ===== */
-function drawIcon(x,y,size,color,label,scale){
+/* ===== ガラス風アイコン ===== */
+function drawIcon(x,y,size,color,label,scale,active){
   ctx.save();
   ctx.translate(x,y);
   ctx.scale(scale,scale);
+
+  ctx.shadowColor=active?color:"transparent";
+  ctx.shadowBlur=active?30:0;
+
   ctx.fillStyle=color;
   ctx.beginPath();
-  ctx.roundRect(-size/2,-size/2,size,size,20);
+  ctx.roundRect(-size/2,-size/2,size,size,28);
   ctx.fill();
 
-  ctx.fillStyle="#fff";
-  ctx.font="bold 16px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText(label,0,size/2+26);
+  const g=ctx.createLinearGradient(0,-size/2,0,size/2);
+  g.addColorStop(0,"rgba(255,255,255,0.35)");
+  g.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=g;
+  ctx.fill();
+
   ctx.restore();
+
+  if(active){
+    ctx.fillStyle="#fff";
+    ctx.font="18px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText(label,x,y+size/2+32);
+  }
 }
 
 /* ===== HOME ===== */
 function drawHome(){
-  drawBackground();
-  const spacing=160;
-  const startX=c.width/2 - spacing*(apps.length-1)/2;
-
+  bg();
+  const spacing=170;
+  const cx=c.width/2-spacing*(apps.length-1)/2;
   apps.forEach((a,i)=>{
-    const target=i===selected?1.25:1;
     a.scale ??=1;
-    a.scale+= (target-a.scale)*0.15;
-    drawIcon(
-      startX+i*spacing,
-      c.height/2,
-      90,
-      a.color,
-      a.name,
-      a.scale
-    );
+    const t=i===selected?1.3:1;
+    a.scale+= (t-a.scale)*settings.uiSpeed;
+    drawIcon(cx+i*spacing,c.height/2,96,a.color,a.name,a.scale,i===selected);
   });
 }
 
-/* ===== 起動中 ===== */
+/* ===== 起動演出 ===== */
 function drawLaunching(){
-  drawBackground();
-  zoom+=0.05;
-  fade+=0.04;
-  drawIcon(
-    c.width/2,
-    c.height/2,
-    100,
-    apps[selected].color,
-    apps[selected].name,
-    zoom
-  );
+  bg();
+  zoom+=0.06;
+  fade+=0.05;
+  drawIcon(c.width/2,c.height/2,100,apps[selected].color,apps[selected].name,zoom,true);
   ctx.fillStyle=`rgba(0,0,0,${fade})`;
   ctx.fillRect(0,0,c.width,c.height);
   if(fade>=1){
-    if(apps[selected].type==="game") state="game";
-    else if(apps[selected].type==="settings") state="settings";
-    else state="home";
-    fade=0; zoom=1;
+    state=apps[selected].type;
+    zoom=1;fade=0;
   }
 }
 
 /* ===== 設定画面 ===== */
+let settingIndex=0;
+const settingItems=["UI SPEED","DIFFICULTY"];
+
 function drawSettings(){
-  drawBackground();
+  bg();
   ctx.fillStyle="#fff";
   ctx.font="28px sans-serif";
   ctx.textAlign="center";
-  ctx.fillText("SETTINGS",c.width/2,120);
-  ctx.font="18px sans-serif";
-  ctx.fillText("Esc で HOME に戻る",c.width/2,170);
+  ctx.fillText("SETTINGS",c.width/2,100);
+
+  ctx.font="20px sans-serif";
+  settingItems.forEach((s,i)=>{
+    ctx.fillStyle=i===settingIndex?"#0ff":"#aaa";
+    let val=i===0?settings.uiSpeed.toFixed(2):settings.difficulty;
+    ctx.fillText(`${s} : ${val}`,c.width/2,180+i*40);
+  });
+
+  ctx.font="16px sans-serif";
+  ctx.fillStyle="#888";
+  ctx.fillText("← → 変更 / Esc 戻る",c.width/2,c.height-60);
 }
 
-/* ===== ミニゲーム（サブ） ===== */
-let px=0;
+/* ===== ゲーム ===== */
+let player={x:0},bullets=[];
+
 function drawGame(){
-  drawBackground();
-  px+=4;
+  bg();
+  player.x+= (c.width/2-player.x)*0.1;
   ctx.fillStyle="#0ff";
-  ctx.fillRect(px%(c.width+50)-50,c.height/2,50,20);
+  ctx.fillRect(player.x-20,c.height-60,40,20);
+
+  if(Math.random()<0.03*settings.difficulty){
+    bullets.push({x:Math.random()*c.width,y:-10});
+  }
+  ctx.fillStyle="#f55";
+  bullets.forEach(b=>{
+    b.y+=4+settings.difficulty*2;
+    ctx.fillRect(b.x,b.y,6,14);
+  });
+  bullets=bullets.filter(b=>b.y<c.height);
 
   ctx.fillStyle="#fff";
-  ctx.font="18px sans-serif";
+  ctx.font="16px sans-serif";
   ctx.textAlign="center";
-  ctx.fillText("GAME (サブ)",c.width/2,80);
-  ctx.fillText("EscでHOMEに戻る",c.width/2,110);
+  ctx.fillText("GAME (サブ)",c.width/2,30);
+  ctx.fillText("EscでHOME",c.width/2,55);
 }
 
-/* ===== 戻り演出 ===== */
-function drawReturning(){
-  fade+=0.05;
-  drawBackground();
+/* ===== 戻る ===== */
+function drawReturn(){
+  fade+=0.06;
+  bg();
   ctx.fillStyle=`rgba(0,0,0,${fade})`;
   ctx.fillRect(0,0,c.width,c.height);
-  if(fade>=1){
-    state="home";
-    fade=0;
-  }
+  if(fade>=1){state="home";fade=0}
 }
 
-/* ===== メインループ ===== */
+/* ===== ループ ===== */
 function loop(){
   if(state==="home") drawHome();
   else if(state==="launching") drawLaunching();
   else if(state==="settings") drawSettings();
   else if(state==="game") drawGame();
-  else if(state==="returning") drawReturning();
+  else if(state==="return") drawReturn();
   requestAnimationFrame(loop);
 }
 loop();
@@ -160,11 +175,23 @@ loop();
 /* ===== 操作 ===== */
 addEventListener("keydown",e=>{
   if(state==="home"){
-    if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
-    if(e.key==="ArrowLeft") selected=(selected-1+apps.length)%apps.length;
-    if(e.key==="Enter") state="launching";
+    if(e.key==="ArrowRight")selected=(selected+1)%apps.length;
+    if(e.key==="ArrowLeft")selected=(selected-1+apps.length)%apps.length;
+    if(e.key==="Enter")state="launching";
+  }else if(state==="settings"){
+    if(e.key==="ArrowUp")settingIndex=(settingIndex+1)%2;
+    if(e.key==="ArrowDown")settingIndex=(settingIndex+1)%2;
+    if(e.key==="ArrowRight"){
+      if(settingIndex===0)settings.uiSpeed=Math.min(0.3,settings.uiSpeed+0.05);
+      else settings.difficulty++;
+    }
+    if(e.key==="ArrowLeft"){
+      if(settingIndex===0)settings.uiSpeed=Math.max(0.05,settings.uiSpeed-0.05);
+      else settings.difficulty=Math.max(1,settings.difficulty-1);
+    }
+    if(e.key==="Escape")state="return";
   }else{
-    if(e.key==="Escape") state="returning";
+    if(e.key==="Escape")state="return";
   }
 });
 </script>
