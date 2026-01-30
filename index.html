@@ -20,20 +20,28 @@ canvas{display:block;}
 
 <script>
 /* ================= 基本 ================= */
-const c = document.getElementById("c");
-const ctx = c.getContext("2d");
+const c=document.getElementById("c");
+const ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight;}
+addEventListener("resize",resize);resize();
 
-function resize(){
-  c.width = innerWidth;
-  c.height = innerHeight;
+/* ================= 設定 ================= */
+const settingKey="switch_ui_settings";
+const settings=JSON.parse(localStorage.getItem(settingKey)||`{
+  "bg":"dark",
+  "accent":"cyan"
+}`);
+
+function saveSettings(){
+  localStorage.setItem(settingKey,JSON.stringify(settings));
 }
-addEventListener("resize", resize);
-resize();
+
+function accentColor(){
+  return settings.accent==="red" ? "#f55" : "#0ff";
+}
 
 /* ================= イージング ================= */
-function easeOutCubic(t){
-  return 1 - Math.pow(1 - t, 3);
-}
+function easeOutCubic(t){return 1-Math.pow(1-t,3);}
 
 /* ================= アイコン生成 ================= */
 function baseIcon(c1,c2){
@@ -41,30 +49,20 @@ function baseIcon(c1,c2){
   cv.width=cv.height=160;
   const x=cv.getContext("2d");
   const g=x.createLinearGradient(0,0,160,160);
-  g.addColorStop(0,c1);
-  g.addColorStop(1,c2);
-  x.fillStyle=g;
-  x.fillRect(0,0,160,160);
+  g.addColorStop(0,c1);g.addColorStop(1,c2);
+  x.fillStyle=g;x.fillRect(0,0,160,160);
   return {cv,x};
 }
-
 function iconGame(){
   const {cv,x}=baseIcon("#ff6a6a","#d93030");
   x.fillStyle="#fff";
-  x.beginPath();
-  x.moveTo(60,45);
-  x.lineTo(115,80);
-  x.lineTo(60,115);
-  x.fill();
+  x.beginPath();x.moveTo(60,45);x.lineTo(115,80);x.lineTo(60,115);x.fill();
   return cv;
 }
 function iconSettings(){
   const {cv,x}=baseIcon("#5f7cff","#2f45d9");
-  x.strokeStyle="#fff";
-  x.lineWidth=10;
-  x.beginPath();
-  x.arc(80,80,28,0,Math.PI*2);
-  x.stroke();
+  x.strokeStyle="#fff";x.lineWidth=10;
+  x.beginPath();x.arc(80,80,28,0,Math.PI*2);x.stroke();
   for(let i=0;i<6;i++){
     const a=i*Math.PI/3;
     x.beginPath();
@@ -76,58 +74,51 @@ function iconSettings(){
 }
 function iconAlbum(){
   const {cv,x}=baseIcon("#ffc96a","#e6a12a");
-  x.fillStyle="#fff";
-  x.fillRect(40,45,80,55);
+  x.fillStyle="#fff";x.fillRect(40,45,80,55);
   return cv;
 }
 
-/* ================= アプリ一覧 ================= */
-const apps = [
-  { name:"ゲーム", icon:iconGame(), type:"game" },
-  { name:"設定", icon:iconSettings(), type:"dummy" },
-  { name:"アルバム", icon:iconAlbum(), type:"dummy" }
+/* ================= アプリ ================= */
+const apps=[
+  {name:"ゲーム",icon:iconGame(),type:"game"},
+  {name:"設定",icon:iconSettings(),type:"settings"},
+  {name:"アルバム",icon:iconAlbum(),type:"dummy"}
 ];
 
-/* ================= UI状態 ================= */
-let state = "home"; // home | app
-let selected = 0;
-let pos = 0;
-let vel = 0;
-let zoom = 1;
-let fade = 0;
-let timer = 0;
+/* ================= 状態 ================= */
+let state="home"; // home | launching | app | returning
+let selected=0,pos=0,vel=0;
+let zoom=1,fade=0;
+let appType=null;
+const spacing=220;
 
-const spacing = 220;
+/* ================= 背景 ================= */
+function drawBackground(){
+  ctx.fillStyle = settings.bg==="gray" ? "#222" : "#000";
+  ctx.fillRect(0,0,c.width,c.height);
+}
 
-/* ================= HOME描画 ================= */
+/* ================= HOME ================= */
 function drawHome(){
-  ctx.clearRect(0,0,c.width,c.height);
-
-  const cx = c.width/2;
-  const cy = c.height/2;
-
-  const target = selected * spacing;
-  vel = (vel + (target - pos) * 0.12) * 0.75;
-  pos += vel;
+  drawBackground();
+  const cx=c.width/2,cy=c.height/2;
+  const target=selected*spacing;
+  vel=(vel+(target-pos)*0.12)*0.75;
+  pos+=vel;
 
   for(let i=0;i<apps.length;i++){
-    const x = cx + i*spacing - pos;
-    const d = Math.abs(i*spacing - pos) / spacing;
-    let s = Math.max(0.8, 1.35 - d*0.35);
-
-    if(state==="launching" && i===selected){
-      s *= zoom;
-    }
+    const x=cx+i*spacing-pos;
+    const d=Math.abs(i*spacing-pos)/spacing;
+    let s=Math.max(0.8,1.35-d*0.35);
+    if(state==="launching"&&i===selected)s*=zoom;
 
     ctx.save();
     ctx.translate(x,cy);
     ctx.scale(s,s);
-
     if(i===selected){
-      ctx.shadowColor="#0ff";
+      ctx.shadowColor=accentColor();
       ctx.shadowBlur=30;
     }
-
     ctx.drawImage(apps[i].icon,-80,-80,160,160);
     ctx.restore();
 
@@ -135,40 +126,83 @@ function drawHome(){
       ctx.fillStyle="#fff";
       ctx.font="24px sans-serif";
       ctx.textAlign="center";
-      ctx.fillText(apps[i].name, x, cy+140);
+      ctx.fillText(apps[i].name,x,cy+140);
     }
   }
 }
 
-/* ================= アプリ画面 ================= */
-function drawApp(){
-  ctx.fillStyle="#111";
-  ctx.fillRect(0,0,c.width,c.height);
+/* ================= 設定画面 ================= */
+let settingIndex=0;
+const settingItems=[
+  {label:"背景",values:["dark","gray"]},
+  {label:"アクセント",values:["cyan","red"]}
+];
+
+function drawSettings(){
+  drawBackground();
   ctx.fillStyle="#fff";
-  ctx.font="40px sans-serif";
+  ctx.font="32px sans-serif";
   ctx.textAlign="center";
-  ctx.fillText(apps[selected].name, c.width/2, c.height/2);
-  ctx.font="20px sans-serif";
-  ctx.fillText("EscでHOMEに戻る", c.width/2, c.height/2+60);
+  ctx.fillText("設定",c.width/2,80);
+
+  ctx.font="22px sans-serif";
+  for(let i=0;i<settingItems.length;i++){
+    const y=160+i*60;
+    const item=settingItems[i];
+    const val=settings[item.label==="背景"?"bg":"accent"];
+    if(i===settingIndex){
+      ctx.fillStyle=accentColor();
+      ctx.fillRect(c.width/2-200,y-30,400,40);
+      ctx.fillStyle="#000";
+    }else{
+      ctx.fillStyle="#fff";
+    }
+    ctx.fillText(item.label+" : "+val,c.width/2,y);
+  }
+
+  ctx.fillStyle="#aaa";
+  ctx.font="18px sans-serif";
+  ctx.fillText("← → 変更 / Esc 戻る",c.width/2,c.height-40);
 }
 
-/* ================= メインループ ================= */
+/* ================= アプリ ================= */
+function drawApp(){
+  if(appType==="settings"){
+    drawSettings();
+  }else{
+    drawBackground();
+    ctx.fillStyle="#fff";
+    ctx.font="32px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("アプリ画面",c.width/2,c.height/2);
+    ctx.font="20px sans-serif";
+    ctx.fillText("EscでHOMEに戻る",c.width/2,c.height/2+60);
+  }
+}
+
+/* ================= ループ ================= */
 function loop(){
-  if(state==="home" || state==="launching"){
-    drawHome();
-  }
-  if(state==="app"){
-    drawApp();
-  }
+  if(state==="home"||state==="launching")drawHome();
+  if(state==="app")drawApp();
 
   if(state==="launching"){
-    zoom += 0.05;
-    fade += 0.05;
-    ctx.fillStyle = `rgba(0,0,0,${fade})`;
+    zoom+=0.05;
+    fade+=0.05;
+    ctx.fillStyle=`rgba(0,0,0,${fade})`;
     ctx.fillRect(0,0,c.width,c.height);
     if(fade>=1){
       state="app";
-      zoom=1;
+      appType=apps[selected].type;
+      zoom=1;fade=0;
+    }
+  }
+
+  if(state==="returning"){
+    fade+=0.06;
+    ctx.fillStyle=`rgba(0,0,0,${fade})`;
+    ctx.fillRect(0,0,c.width,c.height);
+    if(fade>=1){
+      state="home";
       fade=0;
     }
   }
@@ -178,17 +212,30 @@ function loop(){
 loop();
 
 /* ================= 操作 ================= */
-addEventListener("keydown", e=>{
+addEventListener("keydown",e=>{
   if(state==="home"){
-    if(e.key==="ArrowRight") selected=(selected+1)%apps.length;
-    if(e.key==="ArrowLeft") selected=(selected-1+apps.length)%apps.length;
+    if(e.key==="ArrowRight")selected=(selected+1)%apps.length;
+    if(e.key==="ArrowLeft")selected=(selected-1+apps.length)%apps.length;
     if(e.key==="Enter"){
       state="launching";
-      zoom=1;
-      fade=0;
+      zoom=1;fade=0;
     }
-  }else if(state==="app" && e.key==="Escape"){
-    state="home";
+  }else if(state==="app"){
+    if(appType==="settings"){
+      const item=settingItems[settingIndex];
+      const key=item.label==="背景"?"bg":"accent";
+      if(e.key==="ArrowUp")settingIndex=(settingIndex-1+settingItems.length)%settingItems.length;
+      if(e.key==="ArrowDown")settingIndex=(settingIndex+1)%settingItems.length;
+      if(e.key==="ArrowLeft"||e.key==="ArrowRight"){
+        const vals=item.values;
+        settings[key]=vals[(vals.indexOf(settings[key])+1)%vals.length];
+        saveSettings();
+      }
+    }
+    if(e.key==="Escape"){
+      state="returning";
+      appType=null;
+    }
   }
 });
 </script>
