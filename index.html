@@ -1,276 +1,153 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Switch UI + Bullet Hell</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game UI</title>
+
 <style>
-html,body{margin:0;background:#000;overflow:hidden}
-canvas{display:block}
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: black;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+
+<canvas id="game"></canvas>
+
 <script>
-/* ========= 基本 ========= */
-const c=document.getElementById("c");
-const ctx=c.getContext("2d");
-function resize(){c.width=innerWidth;c.height=innerHeight}
-addEventListener("resize",resize);resize();
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-/* ========= アプリ ========= */
-const apps=[
-  {name:"GAME",type:"game",color:"#ff5a5a"},
-  {name:"SETTINGS",type:"settings",color:"#5ac8ff"},
-  {name:"ALBUM",type:"dummy",color:"#aaa"},
-  {name:"POWER",type:"dummy",color:"#6aff6a"},
-];
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
 
-let state="home",selected=0,fade=0,zoom=1;
+// --------------------
+// 状態管理
+// --------------------
+let screen = "loading"; // loading → menu → game / settings
+let time = 0;
+let zoom = 0.2;
 
-/* ========= 設定 ========= */
-const settings={
-  uiSpeed:0.15,
-  density:3,     // 弾数
-  speed:1.5,     // 弾速
-  pattern:0
-};
-const patterns=["MIX","FAN","SPIRAL","CIRCLE"];
-let settingIndex=0;
-
-/* ========= 星背景 ========= */
-let stars=[];
-function initStars(){
-  stars=[];
-  for(let i=0;i<150;i++){
-    stars.push({x:Math.random()*c.width,y:Math.random()*c.height,s:Math.random()*2+1});
+// --------------------
+// 入力
+// --------------------
+window.addEventListener("keydown", (e) => {
+  if (screen === "menu") {
+    if (e.key === "Enter") screen = "game";
+    if (e.key === "Escape") screen = "settings";
+  } else if (screen === "game" || screen === "settings") {
+    if (e.key === "Escape") screen = "menu";
   }
-}
-function drawStars(spd){
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle="#777";
-  stars.forEach(st=>{
-    st.y+=spd*st.s;
-    if(st.y>c.height){st.y=0;st.x=Math.random()*c.width}
-    ctx.fillRect(st.x,st.y,st.s,st.s);
-  });
-}
+});
 
-/* ========= アイコン ========= */
-function icon(x,y,size,color,label,scale,active){
-  ctx.save();
-  ctx.translate(x,y);
-  ctx.scale(scale,scale);
-  ctx.shadowColor=active?color:"transparent";
-  ctx.shadowBlur=active?30:0;
-  ctx.fillStyle=color;
-  ctx.beginPath();
-  ctx.roundRect(-size/2,-size/2,size,size,28);
-  ctx.fill();
-  ctx.restore();
-  if(active){
-    ctx.fillStyle="#fff";
-    ctx.font="18px sans-serif";
-    ctx.textAlign="center";
-    ctx.fillText(label,x,y+size/2+30);
-  }
-}
+// --------------------
+// メインループ
+// --------------------
+function loop() {
+  time++;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-/* ========= HOME ========= */
-function drawHome(){
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  const sp=170;
-  const sx=c.width/2-sp*(apps.length-1)/2;
-  apps.forEach((a,i)=>{
-    a.scale ??=1;
-    const t=i===selected?1.3:1;
-    a.scale+=(t-a.scale)*settings.uiSpeed;
-    icon(sx+i*sp,c.height/2,96,a.color,a.name,a.scale,i===selected);
-  });
-}
+  if (screen === "loading") drawLoading();
+  if (screen === "menu") drawMenu();
+  if (screen === "game") drawGame();
+  if (screen === "settings") drawSettings();
 
-/* ========= 起動 ========= */
-function drawLaunching(){
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  zoom+=0.06; fade+=0.05;
-  icon(c.width/2,c.height/2,100,apps[selected].color,apps[selected].name,zoom,true);
-  ctx.fillStyle=`rgba(0,0,0,${fade})`;
-  ctx.fillRect(0,0,c.width,c.height);
-  if(fade>=1){
-    state=apps[selected].type;
-    zoom=1;fade=0;
-    if(state==="game") initGame();
-  }
-}
-
-/* ========= SETTINGS ========= */
-function drawSettings(){
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle="#fff";
-  ctx.font="28px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("SETTINGS",c.width/2,90);
-
-  const items=[
-    `UI SPEED : ${settings.uiSpeed.toFixed(2)}`,
-    `BULLET DENSITY : ${settings.density}`,
-    `BULLET SPEED : ${settings.speed.toFixed(1)}`,
-    `PATTERN : ${patterns[settings.pattern]}`
-  ];
-
-  ctx.font="20px sans-serif";
-  items.forEach((t,i)=>{
-    ctx.fillStyle=i===settingIndex?"#0ff":"#aaa";
-    ctx.fillText(t,c.width/2,160+i*36);
-  });
-
-  ctx.font="16px sans-serif";
-  ctx.fillStyle="#888";
-  ctx.fillText("↑↓ 選択  ←→ 変更  Esc 戻る",c.width/2,c.height-50);
-}
-
-/* ========= GAME ========= */
-let player,bullets,frame,gameOver,angle;
-
-function initGame(){
-  initStars();
-  player={x:c.width/2,y:c.height-80,vx:0};
-  bullets=[];
-  frame=0;
-  angle=0;
-  gameOver=false;
-}
-
-function spawnBullets(){
-  const cx=c.width/2;
-  for(let n=0;n<settings.density;n++){
-    if(settings.pattern===0 || settings.pattern===3){
-      for(let i=0;i<12;i++){
-        bullets.push({
-          x:cx,y:-20,
-          vx:Math.cos(i)*settings.speed,
-          vy:Math.sin(i)*settings.speed+1
-        });
-      }
-    }
-    if(settings.pattern===0 || settings.pattern===1){
-      for(let i=-6;i<=6;i++){
-        bullets.push({
-          x:cx,y:-10,
-          vx:i*0.3,
-          vy:2*settings.speed
-        });
-      }
-    }
-    if(settings.pattern===0 || settings.pattern===2){
-      for(let i=0;i<6;i++){
-        bullets.push({
-          x:cx,y:-10,
-          vx:Math.cos(angle+i)*settings.speed,
-          vy:Math.sin(angle+i)*settings.speed+2
-        });
-      }
-      angle+=0.2;
-    }
-  }
-}
-
-function drawGame(){
-  frame++;
-  drawStars(2+settings.speed);
-
-  /* 自機 */
-  player.vx*=0.85;
-  player.x+=player.vx;
-  player.x=Math.max(20,Math.min(c.width-20,player.x));
-  ctx.fillStyle="#0ff";
-  ctx.beginPath();
-  ctx.moveTo(player.x,player.y-14);
-  ctx.lineTo(player.x-10,player.y+10);
-  ctx.lineTo(player.x+10,player.y+10);
-  ctx.closePath();
-  ctx.fill();
-
-  if(frame%15===0) spawnBullets();
-
-  ctx.fillStyle="#ff4d4d";
-  bullets.forEach(b=>{
-    b.x+=b.vx;
-    b.y+=b.vy;
-    ctx.beginPath();
-    ctx.arc(b.x,b.y,3.5,0,Math.PI*2);
-    ctx.fill();
-    if(Math.hypot(b.x-player.x,b.y-player.y)<5) gameOver=true;
-  });
-  bullets=bullets.filter(b=>b.y<c.height+40 && b.x>-40 && b.x<c.width+40);
-
-  if(gameOver){
-    ctx.fillStyle="rgba(0,0,0,0.65)";
-    ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle="#fff";
-    ctx.font="32px sans-serif";
-    ctx.textAlign="center";
-    ctx.fillText("GAME OVER",c.width/2,c.height/2-20);
-    ctx.font="18px sans-serif";
-    ctx.fillText("Enter : Retry",c.width/2,c.height/2+20);
-    ctx.fillText("Esc : HOME",c.width/2,c.height/2+48);
-  }
-}
-
-/* ========= 戻る ========= */
-function drawReturn(){
-  fade+=0.06;
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle=`rgba(0,0,0,${fade})`;
-  ctx.fillRect(0,0,c.width,c.height);
-  if(fade>=1){state="home";fade=0}
-}
-
-/* ========= ループ ========= */
-function loop(){
-  if(state==="home")drawHome();
-  else if(state==="launching")drawLaunching();
-  else if(state==="settings")drawSettings();
-  else if(state==="game")drawGame();
-  else if(state==="return")drawReturn();
   requestAnimationFrame(loop);
 }
 loop();
 
-/* ========= 入力 ========= */
-addEventListener("keydown",e=>{
-  if(state==="home"){
-    if(e.key==="ArrowRight")selected=(selected+1)%apps.length;
-    if(e.key==="ArrowLeft")selected=(selected-1+apps.length)%apps.length;
-    if(e.key==="Enter")state="launching";
-  }else if(state==="settings"){
-    if(e.key==="ArrowUp")settingIndex=(settingIndex+3)%4;
-    if(e.key==="ArrowDown")settingIndex=(settingIndex+1)%4;
-    if(e.key==="ArrowRight"){
-      if(settingIndex===0)settings.uiSpeed=Math.min(0.3,settings.uiSpeed+0.05);
-      if(settingIndex===1)settings.density=Math.min(6,settings.density+1);
-      if(settingIndex===2)settings.speed=Math.min(4,settings.speed+0.5);
-      if(settingIndex===3)settings.pattern=(settings.pattern+1)%patterns.length;
-    }
-    if(e.key==="ArrowLeft"){
-      if(settingIndex===0)settings.uiSpeed=Math.max(0.05,settings.uiSpeed-0.05);
-      if(settingIndex===1)settings.density=Math.max(1,settings.density-1);
-      if(settingIndex===2)settings.speed=Math.max(0.5,settings.speed-0.5);
-      if(settingIndex===3)settings.pattern=(settings.pattern+patterns.length-1)%patterns.length;
-    }
-    if(e.key==="Escape")state="return";
-  }else if(state==="game"){
-    if(!gameOver){
-      if(e.key==="ArrowLeft")player.vx-=0.9;
-      if(e.key==="ArrowRight")player.vx+=0.9;
-    }else if(e.key==="Enter") initGame();
-    if(e.key==="Escape")state="return";
+// --------------------
+// 各画面
+// --------------------
+function drawLoading() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.save();
+  ctx.translate(canvas.width/2, canvas.height/2);
+
+  const r = 40;
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(0,0,r, time*0.05, time*0.05 + Math.PI*1.5);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = "white";
+  ctx.font = "20px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Loading...", canvas.width/2, canvas.height/2 + 80);
+
+  if (time > 120) {
+    screen = "menu";
+    time = 0;
   }
-});
+}
+
+function drawMenu() {
+  // 逆ズーム
+  if (zoom < 1) zoom += 0.03;
+
+  ctx.save();
+  ctx.translate(canvas.width/2, canvas.height/2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-canvas.width/2, -canvas.height/2);
+
+  ctx.fillStyle = "#111";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+
+  ctx.font = "48px sans-serif";
+  ctx.fillText("MENU", canvas.width/2, canvas.height/2 - 80);
+
+  ctx.font = "22px sans-serif";
+  ctx.fillText("Enter：ゲーム開始", canvas.width/2, canvas.height/2);
+  ctx.fillText("Esc：設定", canvas.width/2, canvas.height/2 + 40);
+
+  ctx.restore();
+}
+
+function drawGame() {
+  ctx.fillStyle = "#003";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.font = "32px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("GAME画面", canvas.width/2, canvas.height/2);
+
+  ctx.font = "18px sans-serif";
+  ctx.fillText("Escでメニューに戻る", canvas.width/2, canvas.height/2 + 50);
+}
+
+function drawSettings() {
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.font = "32px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("設定画面", canvas.width/2, canvas.height/2);
+
+  ctx.font = "18px sans-serif";
+  ctx.fillText("Escでメニューに戻る", canvas.width/2, canvas.height/2 + 50);
+}
 </script>
+
 </body>
 </html>
